@@ -29,7 +29,7 @@ class EvaAnimConfigManager(var playerEva: EvaAnimPlayer) {
     private var startDetect = 0L
 
     companion object {
-        private const val TAG = "${EvaConstant.TAG}.EvaAnimConfigManager"
+        private const val TAG = EvaConstant.TAG
     }
 
     /**
@@ -73,6 +73,7 @@ class EvaAnimConfigManager(var playerEva: EvaAnimPlayer) {
             return true
         }
         var jsonStr = evaFileContainer.getEvaJson() ?: ""  //读取sp缓存
+        ELog.i(TAG, "------读取sp缓存----")
         if (jsonStr.isEmpty()) {
             evaFileContainer.startRandomRead()
             val readBytes = ByteArray(1024)
@@ -152,7 +153,7 @@ class EvaAnimConfigManager(var playerEva: EvaAnimPlayer) {
             evaFileContainer.closeRandomRead()
 
             if (!findStart || !findEnd) {
-                ELog.e(TAG, "yyeffectmp4json not found")
+                ELog.e(TAG, "yyeffectmp4json not found findStart=$findStart,findEnd=$findEnd")
                 evaFileContainer.setEvaJson("none") //检测后认为资源不存在json,不重复检测
                 setNoJson(evaFileContainer, defaultFps)
                 return true
