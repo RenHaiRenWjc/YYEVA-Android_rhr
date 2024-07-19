@@ -74,7 +74,7 @@ class EvaAnimConfigManager(var playerEva: EvaAnimPlayer) {
         }
         var jsonStr = evaFileContainer.getEvaJson() ?: ""  //读取sp缓存
         ELog.i(TAG, "------读取sp缓存----")
-        if (jsonStr.isEmpty()) {
+        if (jsonStr.isEmpty() || jsonStr == "none") {
             evaFileContainer.startRandomRead()
             val readBytes = ByteArray(1024)
             var readBytesLast = ByteArray(1024)
