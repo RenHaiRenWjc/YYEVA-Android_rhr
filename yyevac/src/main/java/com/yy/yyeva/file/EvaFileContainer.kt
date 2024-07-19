@@ -52,6 +52,7 @@ class EvaFileContainer(private val file: File) : IEvaFileContainer {
         if (md5.isEmpty()) {
             md5 = FileUtil.getFileMD5(file)?: ""
         }
+        ELog.i(TAG, "FileContainer init md5=${md5},file=${file.path}")
         return md5
     }
 

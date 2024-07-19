@@ -168,7 +168,7 @@ class EvaAnimConfigManager(var playerEva: EvaAnimPlayer) {
             setNoJson(evaFileContainer, defaultFps)
             return true
         } else {
-            ELog.i(TAG, "检测正常，使用缓存json $jsonStr")
+            ELog.i(TAG, "检测正常，使用缓存json $")
         }
 
         val jsonObj = JSONObject(jsonStr)
