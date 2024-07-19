@@ -2,6 +2,8 @@ apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
 apply plugin: 'maven-publish'
+apply plugin:'com.github.dcendents.android-maven'
+group='com.github.yyevac'
 
 android {
     compileSdkVersion 31
@@ -15,12 +17,12 @@ android {
             cmake {
                 cppFlags "-std=c++11 -fexceptions"
 //                abiFilters 'armeabi-v7a', 'arm64-v8a','x86', 'x86_64'
-                abiFilters = ["armeabi-v7a","arm64-v8a", 'x86', 'x86_64']
+                abiFilters = ["armeabi-v7a","arm64-v8a"]
             }
         }
         ndk {
 //            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-            setAbiFilters(['armeabi-v7a', 'arm64-v8a','x86', 'x86_64'])
+            setAbiFilters(['armeabi-v7a', 'arm64-v8a'])
 //            abiFilters.clear()
         }
     }
@@ -49,28 +51,28 @@ dependencies {
     }
 }
 
-afterEvaluate {
-    publishing {
-        publications {
-            // Creates a Maven publication called "release".
-            release(MavenPublication) {
-                // Applies the component for the release build variant.
-                from components.release
-
-                // You can then customize attributes of the publication as shown below.
-                groupId = 'com.yy.yyeva'
-                artifactId = 'yyeva'
-                version = '1.0.0'
-            }
-            // Creates a Maven publication called “debug”.
-            debug(MavenPublication) {
-                // Applies the component for the debug build variant.
-                from components.debug
-
-                groupId = 'com.yy.yyeva'
-                artifactId = 'yyeva-debug'
-                version = '1.0.0'
-            }
-        }
-    }
-}
+//afterEvaluate {
+//    publishing {
+//        publications {
+//            // Creates a Maven publication called "release".
+//            release(MavenPublication) {
+//                // Applies the component for the release build variant.
+//                from components.release
+//
+//                // You can then customize attributes of the publication as shown below.
+//                groupId = 'com.yy.yyeva'
+//                artifactId = 'yyeva'
+//                version = '1.0.0'
+//            }
+//            // Creates a Maven publication called “debug”.
+//            debug(MavenPublication) {
+//                // Applies the component for the debug build variant.
+//                from components.debug
+//
+//                groupId = 'com.yy.yyeva'
+//                artifactId = 'yyeva-debug'
+//                version = '1.0.0'
+//            }
+//        }
+//    }
+//}
