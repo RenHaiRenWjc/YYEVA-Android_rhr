@@ -18,11 +18,12 @@ GLuint TextureLoadUtil::loadTexture(unsigned char *bitmap, AndroidBitmapInfo* in
         return 0;
     }
 
-    GLuint textureObjectIds = 0;
+    GLuint textureObjectIds = -1;
     glGenTextures(1, &textureObjectIds);
-    if (textureObjectIds == 0) {
+    if (textureObjectIds == -1) {
+        glDeleteTextures(1, &textureObjectIds);
         ELOGE("textureObjectIds = 0");
-        return 0;
+        return -1;
     }
 
     glBindTexture(GL_TEXTURE_2D, textureObjectIds);
@@ -56,11 +57,12 @@ GLuint TextureLoadUtil::loadTexture(shared_ptr<EvaSrc> src) {
         return 0;
     }
 
-    GLuint textureObjectIds = 0;
+    GLuint textureObjectIds = -1;
     glGenTextures(1, &textureObjectIds);
-    if (textureObjectIds == 0) {
+    if (textureObjectIds == -1) {
+        glDeleteTextures(1, &textureObjectIds);
         ELOGE("textureObjectIds = 0");
-        return 0;
+        return -1;
     }
 
     glBindTexture(GL_TEXTURE_2D, textureObjectIds);

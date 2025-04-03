@@ -52,5 +52,6 @@ private:
     EGLDisplay mDisplay;
     EGLSurface mSurface;
     EGLContext mContext;
+    ANativeWindow* window;
     EGL_PRESENTATION_TIME_ANDROIDPROC eglPresentationTimeANDROID = NULL;
 };

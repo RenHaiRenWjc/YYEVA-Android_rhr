@@ -57,7 +57,7 @@ namespace yyeva {
 
         GLuint shaderProgram;
         //shader
-        GLuint textureId;
+        GLuint textureId = 0;
         //顶点位置
         GLint uTextureLocation;
         //纹理位置

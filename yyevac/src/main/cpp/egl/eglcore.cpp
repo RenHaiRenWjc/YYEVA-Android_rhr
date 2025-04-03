@@ -10,7 +10,7 @@
  * EGL是介于诸如OpenGL 或OpenVG的Khronos渲染API与底层本地平台窗口系统的接口。它被用于处理图形管理、表面/缓冲捆绑、渲染同步及支援使用其他Khronos API进行的高效、加速、混合模式2D和3D渲染。
  * cangwang 2018.12.1
  */
-EGLCore::EGLCore():mDisplay(EGL_NO_DISPLAY), mSurface(EGL_NO_SURFACE),mContext(EGL_NO_CONTEXT) {
+EGLCore::EGLCore():mDisplay(EGL_NO_DISPLAY), mSurface(EGL_NO_SURFACE),mContext(EGL_NO_CONTEXT), window(nullptr) {
 
 }
 
@@ -21,6 +21,7 @@ EGLCore::~EGLCore() {
 }
 
 bool EGLCore::start(ANativeWindow *window) {
+    this->window = window;
     mDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (!mDisplay) {
         ELOGE("eglGetDisplay failed: %d",eglGetError());
@@ -95,6 +96,11 @@ bool EGLCore::start(ANativeWindow *window) {
 }
 
 void EGLCore::start(EGLContext context, ANativeWindow *window) {
+    if(this->window != nullptr) {
+        ANativeWindow_release(this->window);
+        this->window = nullptr;
+    }
+    this->window = window;
     mDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (mDisplay == EGL_NO_DISPLAY){
         ELOGE("eglGetDisplay failed: %d", eglGetError());
@@ -219,7 +225,7 @@ EGLContext EGLCore::createContext(EGLDisplay eglDisplay, EGLConfig eglConfig) {
 EGLContext EGLCore::createContext(EGLDisplay eglDisplay, EGLConfig eglConfig, EGLContext context) {
     //创建渲染上下文
     //只使用opengles2
-    GLint contextAttrib[] = {EGL_CONTEXT_CLIENT_VERSION, 3 ,
+    GLint contextAttrib[] = {EGL_CONTEXT_CLIENT_VERSION, 2 ,
                              EGL_NONE};
     // EGL_NO_CONTEXT表示不向其它的context共享资源
     mContext = eglCreateContext(eglDisplay, eglConfig, context, contextAttrib);
@@ -351,6 +357,10 @@ void EGLCore::release() {
     mContext = EGL_NO_CONTEXT;
     mSurface = EGL_NO_SURFACE;
     ELOGV("egl release finish");
+    if (this->window) {
+        ANativeWindow_release(this->window);
+        this->window = nullptr;
+    }
 }
 
 /**

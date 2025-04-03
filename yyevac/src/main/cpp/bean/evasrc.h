@@ -48,7 +48,7 @@ public:
     Style style = DEFAULT;
     string fontColor = "";
     FitType fitType = FIX_XY;
-    GLuint srcTextureId;
+    GLuint srcTextureId = 0;
     int fontSize = 0;
 
     EvaSrc();
