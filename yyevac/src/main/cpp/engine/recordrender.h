@@ -33,6 +33,7 @@ namespace yyeva {
         void swapBuffers();
         void updateViewPort(int width, int height);
         void setHasBg(bool hasBg);
+        void setBlendMode(int blendMode) {};
         void draw();
         void setTextureId(GLuint textureId);
     private:

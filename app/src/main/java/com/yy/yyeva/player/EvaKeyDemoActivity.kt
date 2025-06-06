@@ -23,6 +23,7 @@ import android.util.Log
 import com.yy.yyeva.inter.IEvaFetchResource
 import com.yy.yyeva.mix.EvaSrc
 import com.yy.yyeva.player.bean.VideoInfo
+import com.yy.yyeva.util.EvaBlendMode
 import com.yy.yyeva.util.EvaJniUtil
 import com.yy.yyeva.view.EvaAnimViewV3
 import kotlinx.android.synthetic.main.activity_anim_simple_demo_p.*
@@ -45,7 +46,7 @@ class EvaKeyDemoActivity : Activity(), IEvaAnimListener {
     }
 
     // 视频信息
-    private val videoInfo = VideoInfo("effect.mp4", "400a778f258ed6bd02ec32defe8ca8be")
+    private val videoInfo = VideoInfo("xue.mp4", "400a778f258ed6bd02ec32defe8ca8be")
 
 
     // 动画View
@@ -169,6 +170,7 @@ class EvaKeyDemoActivity : Activity(), IEvaAnimListener {
 //        animView.setLastFrame(true)
 //        animView.setScaleType(ScaleType.FIT_XY)
 //        animView.setStartPoint(70 * 1000)
+        animView.setBlend(EvaBlendMode.BLEND_ONE)
         play(videoInfo)
     }
 

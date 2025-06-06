@@ -322,6 +322,10 @@ open class EvaAnimViewV3 @JvmOverloads constructor(context: Context, attrs: Attr
         playerEva.setMute(isMute)
     }
 
+    override fun setBlend(blendMode: Int) {
+        playerEva.setBlend(blendMode)
+    }
+
     /**
      * 开启录制
      */

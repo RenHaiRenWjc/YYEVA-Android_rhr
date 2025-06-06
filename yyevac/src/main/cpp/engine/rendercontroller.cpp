@@ -370,6 +370,14 @@ void yyeva::RenderController::setVideoRecord(bool videoRecord) {
     this->videoRecord = videoRecord;
 }
 
+void yyeva::RenderController::setBlendMode(int blendMode) {
+    this->blendMode = blendMode;
+    if (render != nullptr) {
+        render->setBlendMode(blendMode);
+    }
+}
+
+
 GLuint yyeva::RenderController::getRecordFramebufferId() {
     return mFrameBufferTextures;
 }

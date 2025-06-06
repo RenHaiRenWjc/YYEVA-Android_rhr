@@ -493,4 +493,20 @@ JNIEXPORT void JNICALL YYEVA(setLog)(
     ELog::get()->setELog(elog);
 }
 
+JNIEXPORT void JNICALL YYEVA(setBlendMode) (
+        JNIEnv *env,
+        jobject instance, jint controllerId, jint blendMode) {
+    ELOGV("setBlendMode");
+    lock_guard<mutex> auto_lock(mtx);
+    if (controllerId == -1) {
+        ELOGE("setBlendMode controller not init");
+        return;
+    }
+    if (renderMap.find(controllerId) == renderMap.end()) {
+        ELOGE("setBlendMode controller %d not found", controllerId);
+        return;
+    }
+    renderMap[controllerId]->setBlendMode(blendMode);
+}
+
 }

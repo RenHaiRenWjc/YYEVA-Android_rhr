@@ -49,6 +49,8 @@ namespace yyeva {
 
         void setHasBg(bool hasBg) {};
 
+        void setBlendMode(int blendMode) {};
+
         void draw();
 
     private:

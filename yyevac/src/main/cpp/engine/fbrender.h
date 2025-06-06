@@ -36,6 +36,7 @@ namespace yyeva {
         void updateViewPort(int width, int height);
         void draw();
         void setHasBg(bool hasBg){};
+        void setBlendMode(int blendMode) {};
         void setTextureId(GLuint textureId);
     private:
 //        GlFloatArray *vertexArray = new GlFloatArray();

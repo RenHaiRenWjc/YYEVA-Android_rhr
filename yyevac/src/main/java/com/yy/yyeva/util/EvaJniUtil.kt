@@ -126,4 +126,6 @@ object EvaJniUtil {
     external fun setVideoRecord(controllerId: Int, isVideoRecord: Boolean)
 
     external fun setLog(log: IELog)
+
+    external fun setBlendMode(controllerId: Int, blendMode: Int)
 }

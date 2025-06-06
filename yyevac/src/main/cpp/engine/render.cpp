@@ -123,8 +123,12 @@ void yyeva::Render::draw() {
         //     GLenum dstRGB,
         //     GLenum srcAlpha,
         //     GLenum dstAlpha);
-        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
-                            GL_ONE_MINUS_SRC_ALPHA);
+        if (blendMode == 1) {
+            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
+                                GL_ONE_MINUS_SRC_ALPHA);
+        } else {
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        }
 //        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
         glDisable(GL_BLEND);
@@ -135,3 +139,10 @@ void yyeva::Render::draw() {
 void yyeva::Render::setHasBg(bool hasBg) {
     this->hasBg = hasBg;
 }
+
+//如果有背景需要开启混合
+void yyeva::Render::setBlendMode(int blendMode) {
+    this->blendMode = blendMode;
+}
+
+

@@ -59,6 +59,7 @@ abstract class Decoder(val playerEva: EvaAnimPlayer) : IEvaAnimListener {
     var isLoop = false //无限循环
     var isRunning = false // 是否正在运行
     var isStopReq = false // 是否需要停止
+    var blendMode = 1
     val speedControlUtil by lazy { SpeedControlUtil() }
 
     abstract fun start(evaFileContainer: IEvaFileContainer)
@@ -96,6 +97,7 @@ abstract class Decoder(val playerEva: EvaAnimPlayer) : IEvaAnimListener {
     }
 
     fun preparePlay(videoWidth: Int, videoHeight: Int) {
+        EvaJniUtil.setBlendMode(playerEva.controllerId, blendMode)
         playerEva.configManager.defaultConfig(videoWidth, videoHeight)
         playerEva.configManager.config?.apply {
 //            render?.setAnimConfig(this)
@@ -152,6 +154,10 @@ abstract class Decoder(val playerEva: EvaAnimPlayer) : IEvaAnimListener {
         surfaceHeight = height
         EvaJniUtil.updateViewPoint(playerEva.controllerId, width,height)
         Log.i(TAG, "updateViewPoint $width, $height")
+    }
+
+    fun setBlend(blendMode: Int) {
+        this.blendMode = blendMode
     }
 
     override fun onVideoStart(isRestart: Boolean) {

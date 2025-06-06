@@ -68,6 +68,8 @@ namespace yyeva {
 
         void setVideoRecord(bool videoRecord);
 
+        void setBlendMode(int blendMode);
+
         GLuint getRecordFramebufferId();
 
         EGLContext getEglContext();
@@ -90,6 +92,8 @@ namespace yyeva {
         GLuint mFrameBufferTextures = -1;
         int mFrameWidth = -1;
         int mFrameHeight = -1;
+
+        int blendMode = 1;
 
         void initRecordFrameBuffer(int width, int height);
 

@@ -1,5 +1,6 @@
 package com.yy.yyeva
 
+
 import com.yy.yyeva.decoder.Decoder
 import com.yy.yyeva.decoder.EvaHardDecoder
 import com.yy.yyeva.file.IEvaFileContainer
@@ -8,6 +9,7 @@ import com.yy.yyeva.plugin.EvaAnimPluginManager
 import com.yy.yyeva.recorder.EvaMediaRecorder
 import com.yy.yyeva.util.EvaConstant
 import com.yy.yyeva.util.ELog
+import com.yy.yyeva.util.EvaBlendMode
 import com.yy.yyeva.view.EvaAudioPlayer
 import com.yy.yyeva.view.IEvaAnimView
 
@@ -68,6 +70,7 @@ class EvaAnimPlayer(val evaAnimView: IEvaAnimView) {
     val configManager = EvaAnimConfigManager(this)
     val pluginManager = EvaAnimPluginManager(this)
     var isStartPlay = false
+    var blendMode = EvaBlendMode.BLEND_SRC_ALPHA
 
     fun onSurfaceTextureDestroyed() {
         isSurfaceAvailable = false
@@ -91,6 +94,11 @@ class EvaAnimPlayer(val evaAnimView: IEvaAnimView) {
     fun setMute(isMute: Boolean) {
         this.isAudioMute = isMute
         evaAudioPlayer?.setMute(isMute)
+    }
+
+    fun setBlend(blendMode: Int) {
+        this.blendMode = blendMode
+        decoder?.setBlend(blendMode)
     }
 
     fun startPlay(evaFileContainer: IEvaFileContainer, prepare: Boolean = false) {
@@ -189,6 +197,7 @@ class EvaAnimPlayer(val evaAnimView: IEvaAnimView) {
                 playLoop = this@EvaAnimPlayer.playLoop
                 isLoop = this@EvaAnimPlayer.isLoop
                 fps = this@EvaAnimPlayer.fps
+                blendMode = this@EvaAnimPlayer.blendMode
             }
         }
         if (evaAudioPlayer == null) {

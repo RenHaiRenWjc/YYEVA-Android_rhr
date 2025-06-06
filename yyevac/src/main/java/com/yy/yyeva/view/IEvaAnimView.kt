@@ -87,4 +87,6 @@ interface IEvaAnimView {
 
     //设置日志打印
     fun setLog(log: IELog)
+
+    fun setBlend(blendMode: Int)
 }

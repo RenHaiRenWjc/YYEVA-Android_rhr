@@ -39,6 +39,8 @@ namespace yyeva {
 
         void setHasBg(bool hasBg);
 
+        void setBlendMode(int blendMode) override;
+
         void draw();
 
     private:
@@ -61,6 +63,7 @@ namespace yyeva {
         int surfaceHeight = 0;
         bool surfaceSizeChanged = false;
         bool hasBg = false;
+        int blendMode = 1;
 
 //    string VERTEX_SHADER = string("uniform vec4 vPosition;\n") +
 //                              "uniform vec4 vTexCoordinateAlpha;\n" +
