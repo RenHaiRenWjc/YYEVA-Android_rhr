@@ -1,19 +1,23 @@
 package com.yy.yyeva.decoder
 
-import android.graphics.*
-import android.media.*
+import android.graphics.Bitmap
+import android.graphics.SurfaceTexture
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.opengl.GLES20
 import android.os.Build
 import android.view.Surface
+import com.yy.yyeva.EvaAnimPlayer
 import com.yy.yyeva.file.IEvaFileContainer
 import com.yy.yyeva.util.ELog
+import com.yy.yyeva.util.EvaConstant
 import com.yy.yyeva.util.EvaJniUtil
 import com.yy.yyeva.util.EvaMediaUtil
-import android.graphics.Bitmap
-import android.opengl.GLES20
-import com.yy.yyeva.EvaAnimPlayer
-import com.yy.yyeva.util.EvaConstant
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+
 
 class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceTexture.OnFrameAvailableListener {
 
@@ -38,6 +42,25 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
     private var outputFormat: MediaFormat? = null
     // 暂停
     private var isPause = false
+    private var isRestart = false
+    private var retryCount = 0  //初始化失败重试次数
+    private val lock = Object()  //用于暂停和帧抽取速度调整
+    private var evaFileContainer: IEvaFileContainer? = null
+
+    override fun prepareToPlay(evaFileContainer: IEvaFileContainer) {
+        ELog.i(TAG, "prepareToPlay")
+        isStopReq = false
+        isPause = true
+        needDestroy = false
+        isRunning = true
+        renderThread.handler?.post {
+            startPlay(evaFileContainer)
+        }
+    }
+
+    override fun play() {
+        resume()
+    }
 
     override fun start(evaFileContainer: IEvaFileContainer) {
         isStopReq = false
@@ -67,6 +90,10 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
                     EvaJniUtil.renderFrame(playerEva.controllerId)
                     //元素混合
                     playerEva.pluginManager.onRendering()
+                    //录制
+                    if (playerEva.isVideoRecord) {
+                        playerEva.mediaRecorder.encodeFrameInThread(false, timestamp)
+                    }
                     //交换前后景数据
                     EvaJniUtil.renderSwapBuffers(playerEva.controllerId)
                 }
@@ -111,6 +138,7 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
     }
 
     private fun startPlay(evaFileContainer: IEvaFileContainer) {
+        this.evaFileContainer = evaFileContainer
         var extractor: MediaExtractor? = null
         var decoder: MediaCodec? = null
         var format: MediaFormat? = null
@@ -129,15 +157,13 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
 
             // 是否支持h265
             if (EvaMediaUtil.checkIsHevc(format)) {
-                if (Build.VERSION.SDK_INT  < Build.VERSION_CODES.LOLLIPOP
-                    || !EvaMediaUtil.checkSupportCodec(EvaMediaUtil.MIME_HEVC)) {
-
+                if (!EvaMediaUtil.checkSupportCodec(EvaMediaUtil.MIME_HEVC)) {
                     onFailed(
                         EvaConstant.REPORT_ERROR_TYPE_HEVC_NOT_SUPPORT,
                         "${EvaConstant.ERROR_MSG_HEVC_NOT_SUPPORT} " +
                                 "sdk:${Build.VERSION.SDK_INT}" +
                                 ",support hevc:" + EvaMediaUtil.checkSupportCodec(EvaMediaUtil.MIME_HEVC))
-                    release(null, null)
+                    extractor.release()
                     return
                 }
             }
@@ -146,7 +172,12 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
             videoHeight = format.getInteger(MediaFormat.KEY_HEIGHT)
             duration = format.getLong(MediaFormat.KEY_DURATION)
             if (!playerEva.isSetFps) {
-                playerEva.fps = format.getInteger(MediaFormat.KEY_FRAME_RATE)
+                if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {  //防止读不到fps参数的导致无法播放
+                    playerEva.fps = format.getInteger(MediaFormat.KEY_FRAME_RATE)
+                } else {
+                    ELog.i(TAG, "can not get frame-rate from media format")
+                    playerEva.fps = playerEva.defaultFps
+                }
             }
             // 防止没有INFO_OUTPUT_FORMAT_CHANGED时导致alignWidth和alignHeight不会被赋值一直是0
             alignWidth = videoWidth
@@ -169,22 +200,50 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
 //            }
 
             preparePlay(videoWidth, videoHeight)
-
-            if (EvaJniUtil.getExternalTexture(playerEva.controllerId) != -1) {
-                glTexture = playerEva.evaAnimView.getSurfaceTexture()?.apply {
+            if (videoWidth <= 0 || videoHeight <= 0) {
+                ELog.e(TAG, "error Video size is $videoWidth x $videoHeight")
+                onFailed(EvaConstant.REPORT_ERROR_TYPE_EXTRACTOR_EXC, "error Video size is $videoWidth x $videoHeight")
+                extractor.release()
+                return
+            } else if (EvaJniUtil.getExternalTexture(playerEva.controllerId) != -1
+                && playerEva.evaAnimView.getSurfaceTexture() != null) {
+                glTexture = playerEva.evaAnimView.getSurfaceTexture()!!.apply {
                     setOnFrameAvailableListener(this@EvaHardDecoder)
                     setDefaultBufferSize(videoWidth, videoHeight)
                 }
             } else {
-                ELog.e(TAG, "eva not init, can not get glTexture")
+                if (retryCount > 5) {
+                    ELog.e(TAG, "eva not init, can not get glTexture")
+                    onFailed(
+                        EvaConstant.REPORT_ERROR_TYPE_EXTRACTOR_EXC,
+                        "eva not init, can not get glTexture"
+                    )
+                    release(decoder, extractor)
+                } else {
+                    ELog.e(TAG, "retryCount $retryCount eva not init, can not get glTexture", )
+                    retryCount++
+                    extractor.release()
+                    startPlay(evaFileContainer)
+                }
                 return
             }
             EvaJniUtil.renderClearFrame(playerEva.controllerId)
 
         } catch (e: Throwable) {
-            ELog.e(TAG, "MediaExtractor exception e=$e", e)
-            onFailed(EvaConstant.REPORT_ERROR_TYPE_EXTRACTOR_EXC, "${EvaConstant.ERROR_MSG_EXTRACTOR_EXC} e=$e")
-            release(decoder, extractor)
+            if (retryCount > 5) {
+                ELog.e(TAG, "MediaExtractor exception e=$e", e)
+
+                onFailed(
+                    EvaConstant.REPORT_ERROR_TYPE_EXTRACTOR_EXC,
+                    "${EvaConstant.ERROR_MSG_EXTRACTOR_EXC} e=$e"
+                )
+                release(decoder, extractor)
+            } else {
+                ELog.e(TAG, "retryCount $retryCount, MediaCodec configure exception e=$e", e)
+                retryCount++
+                extractor?.release()
+                startPlay(evaFileContainer)
+            }
             return
         }
 
@@ -214,17 +273,33 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
                         startDecode(extractor, this)
                     } catch (e: Throwable) {
                         ELog.e(TAG, "MediaCodec exception e=$e", e)
-                        onFailed(EvaConstant.REPORT_ERROR_TYPE_DECODE_EXC, "${EvaConstant.ERROR_MSG_DECODE_EXC} e=$e")
+                        onFailed(
+                            EvaConstant.REPORT_ERROR_TYPE_DECODE_EXC,
+                            "${EvaConstant.ERROR_MSG_DECODE_EXC} e=$e"
+                        )
                         release(decoder, extractor)
                     }
                 }
             }
         } catch (e: Throwable) {
-            ELog.e(TAG, "MediaCodec configure exception e=$e", e)
-            onFailed(EvaConstant.REPORT_ERROR_TYPE_DECODE_EXC, "${EvaConstant.ERROR_MSG_DECODE_EXC} e=$e")
-            release(decoder, extractor)
-            return
+            ELog.e(TAG, "retryCount $retryCount, MediaCodec configure exception e=$e", e)
+            if (retryCount > 5) {
+                onFailed(
+                    EvaConstant.REPORT_ERROR_TYPE_DECODE_EXC,
+                    "${EvaConstant.ERROR_MSG_DECODE_EXC} e=$e"
+                )
+                release(decoder, extractor)
+                return
+            } else {  //加入重试机制
+                retryCount++
+                startPlay(evaFileContainer)
+            }
         }
+    }
+
+    override fun restart() {
+        ELog.i(TAG, "restart")
+        isRestart = true
     }
 
     override fun pause() {
@@ -235,15 +310,19 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
     override fun resume() {
         ELog.i(TAG, "resume")
         isPause = false
+        synchronized(lock) {
+            lock.notifyAll()
+        }
     }
 
     private fun startDecode(extractor: MediaExtractor, decoder: MediaCodec) {
         val TIMEOUT_USEC = 10000L
-        var inputChunk = 0
+        var inputChunk = 0L
         var outputDone = false
         var inputDone = false
         var frameIndex = 0
         var isLoop = false
+        var failDequeueCount = 0
 
         val decoderInputBuffers = decoder.inputBuffers
 
@@ -260,104 +339,143 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
                 return
             }
 
-            if (isPause) {
-                continue
-            }
-
-            if (!inputDone) {
-                val inputBufIndex = decoder.dequeueInputBuffer(TIMEOUT_USEC)
-                if (inputBufIndex >= 0) {
-                    val inputBuf = decoderInputBuffers[inputBufIndex]
-                    val chunkSize = extractor.readSampleData(inputBuf, 0)
-                    if (chunkSize < 0) {
-                        decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        inputDone = true
-                        ELog.i(TAG, "decode EOS")
-                    } else {
-                        val presentationTimeUs = extractor.sampleTime
-                        decoder.queueInputBuffer(inputBufIndex, 0, chunkSize, presentationTimeUs, 0)
-                        ELog.i(TAG, "submitted frame $inputChunk to dec, size=$chunkSize")
-                        inputChunk++
-                        extractor.advance()
-                    }
-                } else {
-                    ELog.d(TAG, "input buffer not available")
+            synchronized(lock) {
+                if (isPause) {
+                    ELog.i(TAG, "lock wait")
+                    lock.wait()
                 }
             }
+            if (isRestart) {
+                extractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+                isRestart = false
+            }
+            try {
+                if (!inputDone) {
+                    val inputBufIndex = decoder.dequeueInputBuffer(TIMEOUT_USEC)
+                    if (inputBufIndex >= 0) {
+                        val inputBuf = decoderInputBuffers[inputBufIndex]
+                        val chunkSize = extractor.readSampleData(inputBuf, 0)
+                        if (chunkSize < 0) {
+                            decoder.queueInputBuffer(inputBufIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            inputDone = true
+                            ELog.i(TAG, "decode EOS")
+                        } else {
+                            val presentationTimeUs = extractor.sampleTime
+                            decoder.queueInputBuffer(inputBufIndex, 0, chunkSize, presentationTimeUs, 0)
+                            ELog.i(TAG, "submitted frame $inputChunk to dec, size=$chunkSize")
+                            inputChunk++
+                            extractor.advance()
+                        }
+                    } else {
+                        ELog.d(TAG, "input buffer not available")
+                    }
+                }
 
-            if (!outputDone) {
-                //抽取解码数据或状态
-                val decoderStatus = decoder.dequeueOutputBuffer(bufferInfo, TIMEOUT_USEC)
-                when {
-                    decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER -> ELog.d(TAG, "no output from decoder available")
-                    decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED -> ELog.d(TAG, "decoder output buffers changed")
-                    decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                        outputFormat = decoder.outputFormat
-                        outputFormat?.apply {
-                            try {
-                                // 有可能取到空值，做一层保护
-                                val stride = getInteger("stride")
-                                val sliceHeight = getInteger("slice-height")
-                                if (stride > 0 && sliceHeight > 0) {
-                                    alignWidth = stride
-                                    alignHeight = sliceHeight
+                if (!outputDone) {
+                    //抽取解码数据或状态
+                    val decoderStatus = decoder.dequeueOutputBuffer(bufferInfo, TIMEOUT_USEC)
+                    when {
+                        decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER -> ELog.d(TAG, "no output from decoder available")
+                        decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED -> ELog.d(TAG, "decoder output buffers changed")
+                        decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                            outputFormat = decoder.outputFormat
+                            outputFormat?.apply {
+                                try {
+                                    // 有可能取到空值，做一层保护
+                                    val stride = getInteger("stride")
+                                    val sliceHeight = getInteger("slice-height")
+                                    if (stride > 0 && sliceHeight > 0) {
+                                        alignWidth = stride
+                                        alignHeight = sliceHeight
+                                    }
+                                } catch (t: Throwable) {
+                                    ELog.e(TAG, "$t", t)
                                 }
-                            } catch (t: Throwable) {
-                                ELog.e(TAG, "$t", t)
                             }
+                            ELog.i(TAG, "decoder output format changed: $outputFormat")
                         }
-                        ELog.i(TAG, "decoder output format changed: $outputFormat")
-                    }
-                    decoderStatus < 0 -> {
-                        throw RuntimeException("unexpected result from decoder.dequeueOutputBuffer: $decoderStatus")
-                    }
-                    else -> {  //正常解析
-                        var loop = 0
-                        if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                            loop = --playLoop
-                            playerEva.playLoop = playLoop // 消耗loop次数 自动恢复后能有正确的loop次数
-                            outputDone = playLoop <= 0
+                        decoderStatus < 0 -> {
+                            release(decoder, extractor)
+                            throw RuntimeException("unexpected result from decoder.dequeueOutputBuffer: $decoderStatus")
                         }
-                        val doRender = !outputDone
-                        if (doRender) { //控制帧率时间
-                            speedControlUtil.preRender(bufferInfo.presentationTimeUs)
-                        }
+                        else -> {  //正常解析
+                            var loop = 0
+                            if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                                if (this.isLoop) {
+                                    loop = 1
+                                } else {
+                                    loop = --playLoop
+                                    playerEva.playLoop = playLoop // 消耗loop次数 自动恢复后能有正确的loop次数
+                                    outputDone = playLoop <= 0
+                                }
+                            }
+                            val doRender = !outputDone
+                            if (doRender) { //控制帧率时间
+                                speedControlUtil.preRender(bufferInfo.presentationTimeUs)
+                            }
 
-                        if (needYUV && doRender) {
+                            if (needYUV && doRender) {
 //                            yuvProcess(decoder, decoderStatus)
-                        }
-                        //消耗解码数据
-                        // release & render
-                        decoder.releaseOutputBuffer(decoderStatus, doRender && !needYUV)
+                            }
+                            //消耗解码数据
+                            // release & render
+                            decoder.releaseOutputBuffer(decoderStatus, doRender && !needYUV)
 
-                        if (frameIndex == 0 && !isLoop) {
-                            onVideoStart()
-                        }
+                            if (frameIndex == 0 && !isLoop) {
+                                onVideoStart()
+                            }
 
-                        playerEva.pluginManager.onDecoding(frameIndex)
-                        onVideoRender(frameIndex, playerEva.configManager.config)
-                        //输出帧数据
-                        frameIndex++
-                        ELog.d(TAG, "decode frameIndex=$frameIndex")
-                        if (loop > 0) {
-                            ELog.d(TAG, "Reached EOD, looping")
-                            playerEva.pluginManager.onLoopStart()
-                            extractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
-                            inputDone = false
-                            decoder.flush()
-                            speedControlUtil.reset()
-                            frameIndex = 0
-                            isLoop = true
-                            onVideoRestart()
-                        }
-                        if (outputDone) {  //输出完成
-                            if (playerEva.isSetLastFrame) {
-                                notReleaseLastFrame(decoder, extractor)
-                            } else {
-                                release(decoder, extractor)
+                            playerEva.pluginManager.onDecoding(frameIndex)
+                            onVideoRender(frameIndex, playerEva.configManager.config)
+                            //输出帧数据
+                            frameIndex++
+                            ELog.d(TAG, "decode frameIndex=$frameIndex")
+                            if (loop > 0) {
+                                ELog.d(TAG, "Reached EOD, looping")
+                                playerEva.pluginManager.onLoopStart()
+                                extractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+                                val presentationTimeUs = extractor.sampleTime
+                                if (presentationTimeUs == -1L) {
+                                    ELog.i(
+                                        TAG,
+                                        "Reached EOD, presentationTimeUs $presentationTimeUs"
+                                    )
+                                    decoder.apply {
+                                        stop()
+                                        release()
+                                    }
+                                    extractor.release()
+                                    renderThread.handler?.post {
+                                        startPlay(evaFileContainer!!)
+                                    }
+                                    break
+                                } else {
+                                    inputDone = false
+                                    decoder.flush()
+                                    speedControlUtil.reset()
+                                    frameIndex = 0
+                                    isLoop = true
+                                    onVideoRestart()
+                                    onVideoStart(true)
+                                }
+                            }
+                            if (outputDone) {  //输出完成
+                                if (playerEva.isSetLastFrame) {
+                                    notReleaseLastFrame(decoder, extractor)
+                                } else {
+                                    release(decoder, extractor)
+                                }
                             }
                         }
                     }
+                }
+            } catch (e: Exception) {  //解码帧失败跳过，直接继续解尝试
+                if (failDequeueCount > 5) {
+                    ELog.e(TAG, "failDequeueCount $failDequeueCount reason:$e")
+                    release(decoder, extractor)
+                } else {
+                    failDequeueCount++
+                    continue
                 }
             }
         }
@@ -438,9 +556,13 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
             }
             isRunning = false
             onVideoComplete()
+            if (playerEva.isVideoRecord) {
+                playerEva.mediaRecorder.stopCodecRecordInThread()
+            }
             if (needDestroy) {
                 destroyInner()
             }
+            playLoop = 1
         }
     }
 
@@ -482,6 +604,10 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
     }
 
     override fun destroy() {
+        synchronized(lock) {
+            isPause = false
+            lock.notifyAll()
+        }
         if (isRunning) {
             needDestroy = true
             stop()
@@ -494,11 +620,16 @@ class EvaHardDecoder(playerEva: EvaAnimPlayer) : Decoder(playerEva), SurfaceText
     private fun destroyInner() {
         ELog.i(TAG, "destroyInner")
         renderThread.handler?.post {
+            evaFileContainer?.close()
             playerEva.pluginManager.onDestroy()
             EvaJniUtil.destroyRender(playerEva.controllerId)
+            if (playerEva.isVideoRecord) {
+                playerEva.mediaRecorder.stopCodecRecordInThread()
+            }
             playerEva.controllerId = -1
             onVideoDestroy()
             destroyThread()
+            completeBlock = null
         }
     }
 }

@@ -99,7 +99,7 @@ class EvaAnimConfigManager(var playerEva: EvaAnimPlayer) {
                         }
                     } else {
                         if (readBytesLast.isNotEmpty()) {
-                            bufStrS = String(readBytes + readBytesLast)
+                            bufStrS = String(readBytesLast + readBytes)
                             var indexS = bufStrS.indexOf(matchStart)
                             if (indexS > 0) { //合并分段找到匹配开头
                                 jsonStr = bufStrS.substring(indexS + matchStart.length)
@@ -232,6 +232,12 @@ class EvaAnimConfigManager(var playerEva: EvaAnimPlayer) {
                     rgbPointRect = PointRect(0, 0, width, height)
                     alphaPointRect = PointRect(width, 0, width, height)
                 }
+                EvaConstant.YYEVAColorRegion_AlphaMP4_alphaHalfRightTop -> {
+                    width = _videoWidth * 2/ 3
+                    height = _videoHeight
+                    rgbPointRect = PointRect(0, 0, width, height)
+                    alphaPointRect = PointRect(width, 0, width/2, height/2)
+                }
                 EvaConstant.VIDEO_MODE_SPLIT_VERTICAL_REVERSE -> {
                     // 视频上下对齐（rgb上\alpha下）
                     width = _videoWidth
@@ -265,6 +271,9 @@ class EvaAnimConfigManager(var playerEva: EvaAnimPlayer) {
             while (!decompresser.finished()) {
                 val i: Int = decompresser.inflate(buf)
                 o.write(buf, 0, i)
+                if (i == 0) {
+                    break
+                }
             }
             output = o.toByteArray()
         } catch (e: Exception) {
